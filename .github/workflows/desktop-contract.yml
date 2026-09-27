@@ -15,8 +15,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Validate compose manifests
-        shell: ruby
+        shell: bash
         run: |
+          ruby <<'RUBY'
           require "yaml"
 
           paths = Dir[".ores-compose*.yaml"].sort
@@ -46,10 +47,12 @@ jobs:
             abort "#{path}: tunnel token must come from an env-backed file path" unless token_arg.match?(/\A\$\{[A-Z][A-Z0-9_]*\}\z/)
             abort "#{path}: tunnel must wait for daemon" unless tunnel["depends_on"] == ["daemon"]
           end
+          RUBY
 
       - name: Validate appliance security invariants
-        shell: python
+        shell: bash
         run: |
+          python3 <<'PY'
           import json
           from pathlib import Path
 
@@ -69,3 +72,4 @@ jobs:
               assert appliance["orchestrator"]["public_config"] == ".ores-compose.public.yaml"
               assert appliance["cloudflare"]["token_source"] == "file"
               assert appliance["cloudflare"]["token_file_env"]
+          PY
