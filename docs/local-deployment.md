@@ -1,10 +1,8 @@
-# Local desktop deployment
+# ISO Lattes local desktop deployment
 
-This repository follows the ORES desktop-appliance contract.
+This repository uses `ORESoftware/ores-compose` for the declared laptop/desktop lifecycle.
 
 ## Local orchestration
-
-`ores-compose` owns the local process lifecycle. The compose manifest pins the desktop daemon to an immutable Git commit and materializes it below `tmp/dev`.
 
 ```sh
 ores-compose check .ores-compose.yaml
@@ -12,29 +10,33 @@ ores-compose plan .ores-compose.yaml
 ores-compose up .ores-compose.yaml
 ```
 
-Stop from another terminal with:
+Stop it from another terminal with:
 
 ```sh
 ores-compose down .ores-compose.yaml
 ```
 
-The daemon remains loopback-bound and is the privileged local control boundary. Ambient product credentials/tokens must come from the desktop bootstrap or OS secret store; they are never committed to this repo.
+The manifest pins an exact 40-hex desktop-daemon commit under `tmp/dev`, builds it before startup, executes the built release binary directly, and binds the daemon only to the loopback address recorded in `appliance.json`.
 
-## Connectivity
+The local daemon is runnable and loopback-only. Public ingress remains gated because /v1/invoke currently uses the same bearer as the local desktop-control boundary. A distinct remote-auth bridge must land before a public compose profile is added.
 
-Public mode uses a remotely managed Cloudflare Tunnel:
+## Cloudflare boundary
 
-```sh
-export ISL_CF_TUNNEL_TOKEN_FILE=/path/to/os-protected/tunnel-token
-ores-compose up .ores-compose.public.yaml
-```
+A dedicated/static/public IP is not required. Cloudflare account/API credentials must never be copied to an end-user machine or committed here.
 
-The product control plane—not the laptop—creates the tunnel, DNS route, hostname, and remote ingress config. The device only receives the per-tunnel run token. No public/static/dedicated IP, router port-forward, or inbound firewall rule is required.
+For appliances marked `cloudflare.mode = "gated"`, `appliance.json` records the intended loopback origin and hostname/token metadata, but this repository intentionally does **not** ship a runnable `.ores-compose.public.yaml`. Promotion requires both:
 
-The Cloudflare origin is `http://127.0.0.1:8761`. Remote ingress should be constrained to `/v1/invoke`; do not expose the rest of the loopback daemon surface.
+1. the real public origin to be started by the declared local lifecycle; and
+2. a remote authentication boundary distinct from the daemon's privileged local-control bearer.
 
-The token file must live outside the repository and should be stored behind the OS credential boundary (Keychain/DPAPI/Secret Service or equivalent).
+For `cloudflare.mode = "not-required"`, the product uses an outbound authenticated agent path and does not need inbound tunneling.
+
+## Reproducibility gate
+
+The daemon source is commit-pinned, but the pinned daemon repository does not currently commit a `Cargo.lock`. Therefore `promotion_gates.daemon_lockfile_committed` remains false and this candidate must not be described as fully transitive-dependency reproducible.
+
+Before stable promotion, commit the daemon lockfile, change the build to `cargo build --locked --release`, and make CI enforce it.
 
 ## Upgrade model
 
-Upgrades change the immutable `source.commit` in the compose manifest after upstream CI is green. Do not use mutable `latest` refs for desktop production/candidate channels.
+Upgrades change the immutable daemon source commit only after upstream review/CI. Mutable `latest` refs are forbidden.
