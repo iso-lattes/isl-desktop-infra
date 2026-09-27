@@ -5,7 +5,7 @@
   "orchestrator": {
     "engine": "ores-compose",
     "config": ".ores-compose.yaml",
-    "public_config": ".ores-compose.public.yaml",
+    "public_config": null,
     "source_role": "desktop-daemon",
     "shutdown_timeout_ms": 5000
   },
@@ -16,7 +16,7 @@
     "requires_public_ip": false
   },
   "cloudflare": {
-    "mode": "remotely-managed",
+    "mode": "gated",
     "credentials_in_repo": false,
     "token_source": "file",
     "token_file_env": "ISL_CF_TUNNEL_TOKEN_FILE",
@@ -25,10 +25,17 @@
     "hostname_template": "<installation-id>.<configured-zone>",
     "ingress_paths": [
       "/v1/invoke"
-    ]
+    ],
+    "public_ingress_ready": false,
+    "origin_auth": "dedicated-remote-auth-required",
+    "promotion_reason": "The daemon invoke endpoint currently uses the local desktop-control bearer; add a distinct remote-auth bridge before exposing it through Cloudflare Tunnel."
   },
   "update": {
     "mode": "exact-revision",
     "allow_mutable_latest": false
+  },
+  "promotion_gates": {
+    "public_ingress_ready": false,
+    "daemon_lockfile_committed": false
   }
 }
