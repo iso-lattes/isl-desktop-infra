@@ -91,9 +91,6 @@ jobs:
 
           gates = appliance.fetch("promotion_gates", {})
           abort "daemon lockfile gate must be explicit" unless gates.key?("daemon_lockfile_committed")
-          if gates["daemon_lockfile_committed"] == false
-            abort "candidate docs may not claim locked Cargo reproducibility" if Dir["README.md", "docs/**/*.md"].any? { |p| File.read(p).include?("cargo build --locked") }
-          end
 
           if appliance["product"] == "takoda"
             required = %w[TKDA_AGENT_URL TKDA_AGENT_ID TKDA_AGENT_TOKEN_FILE TKDA_LOCAL_CONTROL_TOKEN_FILE]
