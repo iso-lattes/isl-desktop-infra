@@ -1,0 +1,71 @@
+name: desktop-contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate compose manifests
+        shell: ruby
+        run: |
+          require "yaml"
+
+          paths = Dir[".ores-compose*.yaml"].sort
+          abort "no compose manifests found" if paths.empty?
+
+          paths.each do |path|
+            doc = YAML.safe_load(File.read(path), permitted_classes: [], permitted_symbols: [], aliases: false)
+            abort "#{path}: wrong schema" unless doc["schema_version"] == "ores.compose.v1"
+
+            source = doc.fetch("source")
+            commit = source.fetch("commit")
+            abort "#{path}: source commit must be immutable 40-hex" unless commit.match?(/\A[0-9a-f]{40}\z/)
+            checkout = source.fetch("checkout_dir")
+            abort "#{path}: checkout must live under tmp/dev" unless checkout.start_with?("tmp/dev/")
+
+            services = doc.fetch("services")
+            daemon = services.fetch("daemon")
+            abort "#{path}: daemon must use host runtime" unless daemon["runtime"] == "host"
+            abort "#{path}: daemon must build before start" unless daemon["build"] == [["cargo", "build", "--release"]]
+
+            next unless services.key?("tunnel")
+
+            tunnel = services.fetch("tunnel")
+            command = tunnel.fetch("command")
+            abort "#{path}: tunnel must use --token-file" unless command.include?("--token-file")
+            token_arg = command.last.to_s
+            abort "#{path}: tunnel token must come from an env-backed file path" unless token_arg.match?(/\A\$\{[A-Z][A-Z0-9_]*\}\z/)
+            abort "#{path}: tunnel must wait for daemon" unless tunnel["depends_on"] == ["daemon"]
+          end
+
+      - name: Validate appliance security invariants
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+
+          appliance = json.loads(Path("appliance.json").read_text())
+          assert appliance["schema"] == "ores.desktop-appliance/v1"
+          assert appliance["orchestrator"]["engine"] == "ores-compose"
+          assert appliance["orchestrator"]["config"] == ".ores-compose.yaml"
+          assert appliance["host"]["requires_public_ip"] is False
+          assert appliance["cloudflare"]["credentials_in_repo"] is False
+
+          mode = appliance["cloudflare"]["mode"]
+          if mode == "not-required":
+              assert appliance["orchestrator"]["public_config"] is None
+              assert appliance["cloudflare"]["origin"] is None
+          else:
+              assert mode == "remotely-managed"
+              assert appliance["orchestrator"]["public_config"] == ".ores-compose.public.yaml"
+              assert appliance["cloudflare"]["token_source"] == "file"
+              assert appliance["cloudflare"]["token_file_env"]
