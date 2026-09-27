@@ -1,0 +1,30 @@
+schema_version = 1
+
+[daemon]
+listen_addr = "127.0.0.1:8761"
+token_file = "~/.iso-lattes/daemon/token"
+
+[runtime]
+kind = "v8_isolate"
+mode = "persistent_stdio"
+command = "isl-v8-worker"
+args = []
+reuse_scope = "same_tenant_generation"
+
+[granddaddy]
+enabled = true
+command = "erl"
+args = ["-noshell", "-pa", "runtime/ebin", "-s", "isl_granddaddy"]
+
+[cloudflare]
+enabled = false
+command = "cloudflared"
+hostname = ""
+
+[power]
+keep_awake = false
+
+[limits]
+max_parallel_cells = 8
+idle_freeze_ms = 30000
+idle_reclaim_ms = 120000
