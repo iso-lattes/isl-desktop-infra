@@ -1,0 +1,20 @@
+schema_version: ores.compose.v1
+project: iso-lattes-desktop
+allow_lazy_start: false
+source:
+  repository: https://github.com/iso-lattes/isl-desktop-daemon.git
+  commit: 7e2870743ddb1dd5aacb617f0fda7d00e969f3bc
+  checkout_dir: tmp/dev/isl-desktop-daemon
+services:
+  daemon:
+    runtime: host
+    command: ["cargo", "run", "--release"]
+    healthcheck:
+      command: ["curl", "--fail", "--silent", "http://127.0.0.1:8761/healthz"]
+      interval_ms: 250
+      timeout_ms: 1000
+      retries: 20
+  tunnel:
+    runtime: host
+    command: ["cloudflared", "tunnel", "run", "--token-file", "${ISL_CF_TUNNEL_TOKEN_FILE}"]
+    depends_on: [daemon]
