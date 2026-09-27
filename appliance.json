@@ -1,0 +1,34 @@
+{
+  "schema": "ores.desktop-appliance/v1",
+  "product": "iso-lattes",
+  "channel": "candidate",
+  "orchestrator": {
+    "engine": "ores-compose",
+    "config": ".ores-compose.yaml",
+    "public_config": ".ores-compose.public.yaml",
+    "source_role": "desktop-daemon",
+    "shutdown_timeout_ms": 5000
+  },
+  "host": {
+    "trust_model": "developer-owned-trusted-host",
+    "daemon_listen": "127.0.0.1:8761",
+    "public_origin": "http://127.0.0.1:8761",
+    "requires_public_ip": false
+  },
+  "cloudflare": {
+    "mode": "remotely-managed",
+    "credentials_in_repo": false,
+    "token_source": "file",
+    "token_file_env": "ISL_CF_TUNNEL_TOKEN_FILE",
+    "hostname_env": "ISL_CF_TUNNEL_HOSTNAME",
+    "origin": "http://127.0.0.1:8761",
+    "hostname_template": "<installation-id>.<configured-zone>",
+    "ingress_paths": [
+      "/v1/invoke"
+    ]
+  },
+  "update": {
+    "mode": "exact-revision",
+    "allow_mutable_latest": false
+  }
+}
