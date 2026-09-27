@@ -10,7 +10,9 @@ services:
     runtime: host
     build:
       - ["cargo", "build", "--release"]
-    command: ["cargo", "run", "--release"]
+    command: ["./target/release/isl-desktop-daemon"]
+    environment:
+      ISL_DESKTOP_ADDR: "127.0.0.1:8761"
     healthcheck:
       command: ["curl", "--fail", "--silent", "http://127.0.0.1:8761/healthz"]
       interval_ms: 250
