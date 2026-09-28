@@ -6,7 +6,8 @@
     "middleware_code_reload": "process_generation",
     "front_proxy": "none",
     "proxy_managed_application_routes": false,
-    "route_drain_timeout_ms": 300000
+    "route_drain_timeout_ms": 300000,
+    "max_old_generations": 2
   },
   "supported_front_proxies": [
     "none",
