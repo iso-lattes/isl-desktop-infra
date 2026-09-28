@@ -1,0 +1,52 @@
+name: common-layer-certification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: common-layer-certification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out consumer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Require approved private fleet read credential
+        shell: bash
+        env:
+          COMMON_READ_TOKEN: ${{ secrets.FLEET_GITHUB_READ_TOKEN || secrets.TEST_FLEET_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${COMMON_READ_TOKEN}"
+
+      - name: Check out exact common desktop implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ORESoftware/ores-common-desktop-infra
+          ref: 7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c
+          token: ${{ secrets.FLEET_GITHUB_READ_TOKEN || secrets.TEST_FLEET_READ_TOKEN }}
+          path: tmp/dev/ores-common-desktop-infra
+          persist-credentials: false
+
+      - name: Verify exact common source identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C tmp/dev/ores-common-desktop-infra rev-parse HEAD)" = "7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c"
+
+      - name: Compile and execute shared Rust consumer checker
+        env:
+          ORES_COMMON_DESKTOP_EXPECTED_REVISION: 7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c
+        run: |
+          cargo run --locked \
+            --manifest-path tmp/dev/ores-common-desktop-infra/daemon/rust/Cargo.toml \
+            --bin ores-common-desktop-consumer-check
