@@ -3,13 +3,13 @@ project: iso-lattes-desktop
 allow_lazy_start: false
 source:
   repository: https://github.com/iso-lattes/isl-desktop-daemon.git
-  commit: 7e2870743ddb1dd5aacb617f0fda7d00e969f3bc
+  commit: 542b01e007ec20c316f23e4c4c9b91f3830637c0
   checkout_dir: tmp/dev/isl-desktop-daemon
 services:
   daemon:
     runtime: host
     build:
-      - ["cargo", "build", "--release"]
+      - ["cargo", "build", "--release", "--locked"]
     command: ["./target/release/isl-desktop-daemon"]
     environment:
       ISL_DESKTOP_ADDR: "127.0.0.1:8761"
