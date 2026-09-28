@@ -153,7 +153,10 @@ fn validate_cloudflare(appliance: &Value, root: &Path) -> Result<(), String> {
             if origin_auth != "outbound-agent-only" {
                 return Err("not-required mode requires outbound-agent-only auth".to_owned());
             }
-            if !appliance.pointer("/cloudflare/origin").is_none_or(Value::is_null) {
+            if !appliance
+                .pointer("/cloudflare/origin")
+                .is_none_or(Value::is_null)
+            {
                 return Err("not-required Cloudflare mode requires null origin".to_owned());
             }
         }
@@ -164,12 +167,19 @@ fn validate_cloudflare(appliance: &Value, root: &Path) -> Result<(), String> {
             if origin_auth != "dedicated-remote-auth-required" {
                 return Err("gated mode requires dedicated remote-auth bridge".to_owned());
             }
-            if string_at(appliance, "/cloudflare/promotion_reason")?.trim().is_empty() {
+            if string_at(appliance, "/cloudflare/promotion_reason")?
+                .trim()
+                .is_empty()
+            {
                 return Err("gated mode requires promotion_reason".to_owned());
             }
         }
         "remotely-managed" => {
-            require_string(appliance, "/orchestrator/public_config", ".ores-compose.public.yaml")?;
+            require_string(
+                appliance,
+                "/orchestrator/public_config",
+                ".ores-compose.public.yaml",
+            )?;
             if !ready || origin_auth != "dedicated-remote-auth" {
                 return Err("remotely-managed mode requires public-ready dedicated auth".to_owned());
             }
@@ -242,7 +252,9 @@ fn validate_compose(path: &Path, product: &str, listen: &str) -> Result<(), Stri
         "commit:",
     ] {
         if !text.contains(required) {
-            return Err(format!("compose contract missing required marker {required:?}"));
+            return Err(format!(
+                "compose contract missing required marker {required:?}"
+            ));
         }
     }
     if text.contains("0.0.0.0") || text.contains("[::]") {
@@ -283,7 +295,8 @@ fn validate_loopback_socket(value: &str) -> Result<(), String> {
 }
 
 fn read_json(path: &Path) -> Result<Value, String> {
-    let bytes = fs::read(path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    let bytes =
+        fs::read(path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
     return serde_json::from_slice(&bytes)
         .map_err(|error| format!("{} is invalid JSON: {error}", path.display()));
 }
@@ -339,7 +352,9 @@ fn require_bool(value: &Value, pointer: &str, expected: bool) -> Result<(), Stri
 
 fn require_full_git_object_id(value: &str, label: &str) -> Result<(), String> {
     if !matches!(value.len(), 40 | 64) || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(format!("{label} must be a full immutable 40/64-hex object id"));
+        return Err(format!(
+            "{label} must be a full immutable 40/64-hex object id"
+        ));
     }
     return Ok(());
 }
