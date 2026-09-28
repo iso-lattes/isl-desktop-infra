@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate desktop appliance boundary
         shell: bash
@@ -41,7 +41,15 @@ jobs:
           capabilities = common.fetch("capabilities")
           abort "common desktop capability set incomplete" unless (required_common_caps - capabilities).empty?
 
+          expected_common_revision = "7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c"
+          abort "common desktop layer must be pinned to audited revision" unless common["status"] == "pinned"
+          abort "common desktop revision drifted" unless common["revision"] == expected_common_revision
+
           gates = appliance.fetch("promotion_gates", {})
+          abort "pinned common layer promotion gate must be true" unless gates["common_layer_pinned"] == true
+          abort "common layer CI evidence gate must be explicit" unless [true, false].include?(gates["common_layer_ci_verified"])
+          abort "stable channel requires executed common-layer CI evidence" if appliance["channel"] == "stable" && gates["common_layer_ci_verified"] != true
+
           case common["status"]
           when "awaiting-repository"
             abort "awaiting common repository must not have a revision" unless common["revision"].nil?
