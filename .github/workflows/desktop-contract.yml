@@ -24,14 +24,25 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Require fleet read credential
+      - name: Mint read-only fleet GitHub App token
+        id: app-token
+        if: ${{ vars.FLEET_GITHUB_APP_CLIENT_ID != '' && secrets.FLEET_GITHUB_APP_PRIVATE_KEY != '' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          client-id: ${{ vars.FLEET_GITHUB_APP_CLIENT_ID }}
+          private-key: ${{ secrets.FLEET_GITHUB_APP_PRIVATE_KEY }}
+          owner: ORESoftware
+          repositories: ores-common-desktop-infra
+          permission-contents: read
+
+      - name: Require approved common-layer credential
         env:
-          FLEET_TOKEN: ${{ secrets.FLEET_GITHUB_READ_TOKEN }}
+          COMMON_REPO_TOKEN: ${{ steps.app-token.outputs.token || secrets.FLEET_GITHUB_READ_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$FLEET_TOKEN" || {
-            echo "FLEET_GITHUB_READ_TOKEN is required to consume the private common desktop layer" >&2
+          test -n "$COMMON_REPO_TOKEN" || {
+            echo "Configure FLEET_GITHUB_APP_CLIENT_ID + FLEET_GITHUB_APP_PRIVATE_KEY, or FLEET_GITHUB_READ_TOKEN, to consume the private common desktop layer" >&2
             exit 1
           }
 
@@ -41,7 +52,7 @@ jobs:
           repository: ORESoftware/ores-common-desktop-infra
           ref: ${{ env.ORES_COMMON_DESKTOP_REVISION }}
           path: tmp/dev/ores-common-desktop-infra
-          token: ${{ secrets.FLEET_GITHUB_READ_TOKEN }}
+          token: ${{ steps.app-token.outputs.token || secrets.FLEET_GITHUB_READ_TOKEN }}
           persist-credentials: false
 
       - name: Verify exact common revision
