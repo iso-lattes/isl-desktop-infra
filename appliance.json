@@ -53,8 +53,18 @@
       "process-lifecycle",
       "health-readiness",
       "structured-logging",
+      "desktop-auth-shell",
+      "mixed-compute-plane",
       "runtime-isolation",
       "stable-ingress",
+      "cross-platform-packaging",
+      "typed-mutation-auth",
+      "middleware-executor-isolation",
+      "runtime-adapter-abi",
+      "immutable-deployment-bundle",
+      "durable-generation-state",
+      "desktop-event-stream",
+      "conformance-suite",
       "hot-reload-backends"
     ]
   },
