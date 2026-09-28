@@ -22,21 +22,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Check out pinned common desktop conformance
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: ORESoftware/ores-common-desktop-infra
-          ref: 26645f8c54f986c82424e5db544487b3fcf1a286
-          path: tmp/dev/ores-common-desktop-infra
-          persist-credentials: false
-      - name: Install common desktop MSRV
+      - name: Install Rust 1.82
         uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
         with:
           toolchain: "1.82.0"
-      - name: Validate appliance with shared Rust conformance
-        run: >-
-          cargo +1.82.0 run --locked
-          --manifest-path tmp/dev/ores-common-desktop-infra/Cargo.toml
-          -p ores-common-desktop-conformance
-          --bin validate_appliance_contract
-          -- .
+          components: rustfmt,clippy
+      - name: Format vendored validator
+        run: cargo +1.82.0 fmt --manifest-path tools/appliance-conformance/Cargo.toml -- --check
+      - name: Clippy vendored validator
+        run: cargo +1.82.0 clippy --manifest-path tools/appliance-conformance/Cargo.toml -- -D warnings
+      - name: Validate appliance
+        run: cargo +1.82.0 run --manifest-path tools/appliance-conformance/Cargo.toml -- .
