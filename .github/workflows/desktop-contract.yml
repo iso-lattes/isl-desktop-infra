@@ -31,13 +31,58 @@ jobs:
           doc = YAML.safe_load(File.read(compose_path), permitted_classes: [], permitted_symbols: [], aliases: false)
           appliance = JSON.parse(File.read("appliance.json"))
 
+          policy_path = appliance.fetch("hot_reload_policy")
+          abort "hot reload policy path drifted" unless policy_path == "hot-reload-policy.json"
+          policy = JSON.parse(File.read(policy_path))
+          abort "wrong hot reload policy schema" unless policy["schema"] == "ores.desktop-hot-reload/v1"
+          abort "hot reload policy product mismatch" unless policy["product"] == appliance["product"]
+
+          defaults = policy.fetch("default")
+          allowed_front = %w[none nginx haproxy caddy]
+          allowed_routes = %w[beam native_atomic external_process wasm_generation nginx_worker_generation haproxy_runtime caddy_admin]
+          allowed_middleware = %w[beam_hot_code process_generation wasm_generation declarative_only]
+
+          abort "invalid front proxy" unless allowed_front.include?(defaults["front_proxy"])
+          abort "invalid route backend" unless allowed_routes.include?(defaults["route_backend"])
+          abort "invalid middleware reload mode" unless allowed_middleware.include?(defaults["middleware_code_reload"])
+          abort "route drain timeout must be bounded" unless defaults["route_drain_timeout_ms"].is_a?(Integer) && defaults["route_drain_timeout_ms"].between?(1, 86_400_000)
+          abort "old generation retention must be bounded" unless defaults["max_old_generations"].is_a?(Integer) && defaults["max_old_generations"].between?(1, 4)
+
+          supported_front = policy.fetch("supported_front_proxies")
+          supported_routes = policy.fetch("supported_route_backends")
+          supported_middleware = policy.fetch("supported_middleware_code_reload")
+          abort "unsupported/duplicate front proxy entry" unless supported_front.uniq == supported_front && supported_front.all? { |v| allowed_front.include?(v) } && supported_front.include?(defaults["front_proxy"])
+          abort "unsupported/duplicate route backend entry" unless supported_routes.uniq == supported_routes && supported_routes.all? { |v| allowed_routes.include?(v) } && supported_routes.include?(defaults["route_backend"])
+          abort "unsupported/duplicate middleware reload entry" unless supported_middleware.uniq == supported_middleware && supported_middleware.all? { |v| allowed_middleware.include?(v) } && supported_middleware.include?(defaults["middleware_code_reload"])
+
+          case defaults["route_backend"]
+          when "nginx_worker_generation"
+            abort "nginx reload backend requires nginx front proxy" unless defaults["front_proxy"] == "nginx"
+          when "haproxy_runtime"
+            abort "HAProxy runtime backend requires haproxy front proxy" unless defaults["front_proxy"] == "haproxy"
+          when "caddy_admin"
+            abort "Caddy admin backend requires caddy front proxy" unless defaults["front_proxy"] == "caddy"
+          end
+
+          if defaults["proxy_managed_application_routes"]
+            abort "proxy-managed routes require a proxy-owned route backend" unless %w[nginx_worker_generation haproxy_runtime caddy_admin].include?(defaults["route_backend"])
+          end
+
+          invariants = policy.fetch("invariants")
+          abort "routing/middleware isolation invariant weakened" unless invariants["routing_middleware_separate_from_compute"] == true
+          abort "route reload may not restart standalone server" unless invariants["route_change_restarts_standalone_server"] == false
+          abort "route reload may not restart lambda workers" unless invariants["route_change_restarts_lambda_workers"] == false
+          abort "arbitrary native middleware may not share router process" unless invariants["arbitrary_native_middleware_in_router_process"] == false
+          abort "old generation draining must be bounded" unless invariants["bounded_old_generation_drain"] == true
+
+
           abort "wrong compose schema" unless doc["schema_version"] == "ores.compose.v1"
           abort "wrong appliance schema" unless appliance["schema"] == "ores.desktop-appliance/v1"
 
           common = appliance.fetch("common_layer")
           abort "common desktop repo identity drifted" unless common["repository"] == "ORESoftware/ores-common-desktop-infra"
           abort "common desktop checkout must stay under tmp/dev" unless common["checkout_dir"] == "tmp/dev/ores-common-desktop-infra"
-          required_common_caps = %w[consumer-validation loopback-policy secret-file-policy cloudflare-policy update-policy process-lifecycle health-readiness structured-logging]
+          required_common_caps = %w[consumer-validation loopback-policy secret-file-policy cloudflare-policy update-policy process-lifecycle health-readiness structured-logging runtime-isolation stable-ingress hot-reload-backends]
           capabilities = common.fetch("capabilities")
           abort "common desktop capability set incomplete" unless (required_common_caps - capabilities).empty?
 
