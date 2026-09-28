@@ -12,115 +12,47 @@ concurrency:
   group: desktop-contract-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  ORES_COMMON_DESKTOP_REVISION: 7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c
+
 jobs:
   validate:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
-      - name: Validate desktop appliance boundary
+      - name: Require fleet read credential
+        env:
+          FLEET_TOKEN: ${{ secrets.FLEET_GITHUB_READ_TOKEN }}
         shell: bash
         run: |
-          ruby <<'RUBY'
-          require "yaml"
-          require "json"
+          set -euo pipefail
+          test -n "$FLEET_TOKEN" || {
+            echo "FLEET_GITHUB_READ_TOKEN is required to consume the private common desktop layer" >&2
+            exit 1
+          }
 
-          compose_path = ".ores-compose.yaml"
-          abort "missing #{compose_path}" unless File.file?(compose_path)
-          doc = YAML.safe_load(File.read(compose_path), permitted_classes: [], permitted_symbols: [], aliases: false)
-          appliance = JSON.parse(File.read("appliance.json"))
+      - name: Check out exact common desktop layer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ORESoftware/ores-common-desktop-infra
+          ref: ${{ env.ORES_COMMON_DESKTOP_REVISION }}
+          path: tmp/dev/ores-common-desktop-infra
+          token: ${{ secrets.FLEET_GITHUB_READ_TOKEN }}
+          persist-credentials: false
 
-          abort "wrong compose schema" unless doc["schema_version"] == "ores.compose.v1"
-          abort "wrong appliance schema" unless appliance["schema"] == "ores.desktop-appliance/v1"
+      - name: Verify exact common revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git -C tmp/dev/ores-common-desktop-infra rev-parse HEAD)"
+          test "$actual" = "$ORES_COMMON_DESKTOP_REVISION"
 
-          common = appliance.fetch("common_layer")
-          abort "common desktop repo identity drifted" unless common["repository"] == "ORESoftware/ores-common-desktop-infra"
-          abort "common desktop checkout must stay under tmp/dev" unless common["checkout_dir"] == "tmp/dev/ores-common-desktop-infra"
-          required_common_caps = %w[consumer-validation loopback-policy secret-file-policy cloudflare-policy update-policy process-lifecycle health-readiness structured-logging]
-          capabilities = common.fetch("capabilities")
-          abort "common desktop capability set incomplete" unless (required_common_caps - capabilities).empty?
-
-          gates = appliance.fetch("promotion_gates", {})
-          case common["status"]
-          when "awaiting-repository"
-            abort "awaiting common repository must not have a revision" unless common["revision"].nil?
-            abort "common layer promotion gate must remain false" unless gates["common_layer_pinned"] == false
-            abort "stable channel cannot await common repository" if appliance["channel"] == "stable"
-          when "pinned"
-            revision = common["revision"].to_s
-            abort "pinned common layer requires immutable 40-hex revision" unless revision.match?(/\A[0-9a-f]{40}\z/)
-            abort "pinned common layer promotion gate must be true" unless gates["common_layer_pinned"] == true
-          else
-            abort "unknown common desktop layer status"
-          end
-          abort "unexpected public IP requirement" unless appliance.dig("host", "requires_public_ip") == false
-          abort "cloudflare credentials may not live in repo" unless appliance.dig("cloudflare", "credentials_in_repo") == false
-          abort "orchestrator must be ores-compose" unless appliance.dig("orchestrator", "engine") == "ores-compose"
-          abort "canonical compose path drifted" unless appliance.dig("orchestrator", "config") == compose_path
-
-          source = doc.fetch("source")
-          commit = source.fetch("commit")
-          abort "source commit must be immutable 40-hex" unless commit.match?(/\A[0-9a-f]{40}\z/)
-          abort "checkout must live under tmp/dev" unless source.fetch("checkout_dir").start_with?("tmp/dev/")
-          abort "source must be credential-free GitHub HTTPS" unless source.fetch("repository").match?(%r{\Ahttps://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\.git\z})
-
-          daemon = doc.fetch("services").fetch("daemon")
-          abort "daemon must use host runtime" unless daemon["runtime"] == "host"
-          abort "daemon must build before start" unless daemon["build"] == [["cargo", "build", "--release"]]
-          command = daemon.fetch("command")
-          abort "daemon must run the built release binary directly" unless command.length == 1 && command.first.start_with?("./target/release/")
-          abort "local compose must not start a public tunnel" if doc.fetch("services").key?("tunnel")
-
-          rendered = File.read(compose_path)
-          abort "non-loopback bind found" if rendered.include?("0.0.0.0") || rendered.include?("[::]")
-          if daemon["healthcheck"]
-            listen = appliance.dig("host", "daemon_listen")
-            health = daemon.dig("healthcheck", "command").join(" ")
-            abort "healthcheck must target the appliance loopback daemon" unless health.include?("http://#{listen}/")
-          end
-
-          if (component = Array(appliance["components"]).find { |c| c["name"] == "desktop-daemon" })
-            repo = source.fetch("repository").sub(%r{\Ahttps://github\.com/}, "").sub(/\.git\z/, "")
-            abort "desktop-daemon component repo/source mismatch" unless component["repo"] == repo
-            abort "desktop-daemon component rev/source mismatch" unless component["rev"] == commit
-          end
-
-          public_config = appliance.dig("orchestrator", "public_config")
-          mode = appliance.dig("cloudflare", "mode")
-          ready = appliance.dig("cloudflare", "public_ingress_ready")
-          origin_auth = appliance.dig("cloudflare", "origin_auth")
-
-          case mode
-          when "not-required"
-            abort "not-required mode may not declare public config" unless public_config.nil?
-            abort "not-required mode must not be public-ready" unless ready == false
-            abort "not-required mode must be outbound-agent-only" unless origin_auth == "outbound-agent-only"
-            abort "not-required mode origin must be null" unless appliance.dig("cloudflare", "origin").nil?
-          when "gated"
-            abort "gated mode may not declare public config" unless public_config.nil?
-            abort "gated mode must not be public-ready" unless ready == false
-            abort "gated mode requires a distinct remote-auth bridge" unless origin_auth == "dedicated-remote-auth-required"
-            abort "gated mode must explain its blocker" if appliance.dig("cloudflare", "promotion_reason").to_s.empty?
-          when "remotely-managed"
-            abort "public mode must declare canonical public config" unless public_config == ".ores-compose.public.yaml"
-            abort "remote-managed mode must be public-ready" unless ready == true
-            abort "remote-managed mode requires dedicated remote auth" unless origin_auth == "dedicated-remote-auth"
-            abort "tunnel token must be file-backed" unless appliance.dig("cloudflare", "token_source") == "file"
-          else
-            abort "unknown cloudflare mode"
-          end
-
-          if public_config.nil?
-            abort "gated/not-required appliance may not ship a runnable public compose profile" if File.exist?(".ores-compose.public.yaml")
-          end
-
-          gates = appliance.fetch("promotion_gates", {})
-          abort "daemon lockfile gate must be explicit" unless gates.key?("daemon_lockfile_committed")
-
-          if appliance["product"] == "takoda"
-            required = %w[TKDA_AGENT_URL TKDA_AGENT_ID TKDA_AGENT_TOKEN_FILE TKDA_LOCAL_CONTROL_TOKEN_FILE]
-            inherited = daemon.fetch("inherit_env", [])
-            abort "Takoda agent credential/identity contract incomplete" unless (required - inherited).empty?
-          end
-          RUBY
+      - name: Validate through common desktop implementation
+        env:
+          ORES_COMMON_DESKTOP_EXPECTED_REVISION: ${{ env.ORES_COMMON_DESKTOP_REVISION }}
+        run: |
+          cargo run --locked             --manifest-path tmp/dev/ores-common-desktop-infra/daemon/rust/Cargo.toml             --bin ores-common-desktop-consumer-check
