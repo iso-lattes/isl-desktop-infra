@@ -20,7 +20,9 @@ See [docs/local-deployment.md](docs/local-deployment.md) and [appliance.json](ap
 
 ## Shared desktop infra dependency
 
-Generic desktop lifecycle/security behavior is moving to `ORESoftware/ores-common-desktop-infra`. This repo declares that dependency in its ORES appliance metadata and blocks stable promotion until an exact common-layer commit is pinned.
+This repository pins the shared desktop implementation `ORESoftware/ores-common-desktop-infra` at exact revision `7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c`.
 
-Current state is intentionally `awaiting-repository` with a null revision because GitHub does not yet expose that repository through the connected installation. Product-local behavior remains candidate-only until the common layer can be consumed by exact SHA.
+Generic consumer validation, loopback/secret policy, Cloudflare promotion policy, update/lifecycle rules, readiness policy, and structured-log redaction are owned by that common layer. The local appliance records the exact pin; `common_layer_ci_verified` intentionally remains false until the private cross-org certification workflow runs successfully.
+
+See [docs/local-deployment.md](docs/local-deployment.md) and [the certification workflow](.github/workflows/common-layer-certification.yml).
 
