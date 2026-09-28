@@ -1,0 +1,42 @@
+name: rust-appliance-conformance
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-appliance-conformance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out product infra
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Check out pinned common desktop conformance
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ORESoftware/ores-common-desktop-infra
+          ref: 26645f8c54f986c82424e5db544487b3fcf1a286
+          path: tmp/dev/ores-common-desktop-infra
+          persist-credentials: false
+      - name: Install common desktop MSRV
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30
+        with:
+          toolchain: "1.82.0"
+      - name: Validate appliance with shared Rust conformance
+        run: >-
+          cargo +1.82.0 run --locked
+          --manifest-path tmp/dev/ores-common-desktop-infra/Cargo.toml
+          -p ores-common-desktop-conformance
+          --bin validate_appliance_contract
+          -- .
