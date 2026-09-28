@@ -22,7 +22,7 @@ See [docs/local-deployment.md](docs/local-deployment.md) and [appliance.json](ap
 
 Generic desktop lifecycle/security behavior is moving to `ORESoftware/ores-common-desktop-infra`. This repo declares that dependency in its ORES appliance metadata and blocks stable promotion until an exact common-layer commit is pinned.
 
-Current state is intentionally `awaiting-repository` with a null revision because GitHub does not yet expose that repository through the connected installation. Product-local behavior remains candidate-only until the common layer can be consumed by exact SHA.
+The common platform is now pinned at `1de34a491673cff2ff7fedb6ba36f8b6a10ae5a1` in `appliance.json`. Candidate promotion must keep that exact revision aligned with common-layer conformance checks; updates to the shared platform are explicit revision bumps, never a mutable branch dependency.
 
 
 ## Hot-reload routing and middleware
