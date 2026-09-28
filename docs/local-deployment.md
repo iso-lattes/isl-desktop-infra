@@ -43,25 +43,35 @@ Upgrades change the immutable daemon source commit only after upstream review/CI
 
 ## Common desktop implementation layer
 
-This appliance is required to consume `ORESoftware/ores-common-desktop-infra` for generic host/security/lifecycle behavior instead of maintaining product-local copies.
+Generic host/security/lifecycle behavior is owned by `ORESoftware/ores-common-desktop-infra`.
 
-The machine-readable ORES appliance currently records:
+This appliance now pins the shared implementation at:
 
-- repository: `ORESoftware/ores-common-desktop-infra`;
-- checkout: `tmp/dev/ores-common-desktop-infra`;
-- status: `awaiting-repository`;
-- revision: `null`.
+```text
+repository = ORESoftware/ores-common-desktop-infra
+revision   = 7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c
+checkout   = tmp/dev/ores-common-desktop-infra
+status     = pinned
+```
 
-That is a fail-closed migration state. Stable promotion is blocked while `promotion_gates.common_layer_pinned` is false.
+The common implementation supplies the shared Rust consumer checker, loopback policy, secret-file policy, Cloudflare promotion checks, exact-revision update policy, process lifecycle, health/readiness policy, and structured-log redaction.
 
-Once the common repository is available, migration must be atomic:
+For an authenticated local checkout, validate this repository through the common code with:
 
-1. pin an exact 40-hex common-layer commit;
-2. change status to `pinned`;
-3. set `common_layer_pinned=true`;
-4. invoke/import the shared validators and lifecycle helpers from that exact checkout;
-5. delete product-local copies of code now owned by the common layer;
-6. keep only product-specific ports, daemon/runtime topology, workers, and native contracts here.
+```sh
+git clone https://github.com/ORESoftware/ores-common-desktop-infra.git \
+  tmp/dev/ores-common-desktop-infra
+git -C tmp/dev/ores-common-desktop-infra checkout 7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c
 
-Mutable branches or tags are not acceptable release dependencies.
+ORES_COMMON_DESKTOP_EXPECTED_REVISION=7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c \
+  cargo run --locked \
+  --manifest-path tmp/dev/ores-common-desktop-infra/daemon/rust/Cargo.toml \
+  --bin ores-common-desktop-consumer-check
+```
+
+Cross-organization GitHub Actions use `.github/workflows/common-layer-certification.yml`. Because the common repository is private, that workflow requires the approved read-only fleet credential boundary (`FLEET_GITHUB_READ_TOKEN` or `TEST_FLEET_READ_TOKEN`). Missing credentials fail closed.
+
+`promotion_gates.common_layer_pinned` is true because the exact source revision is now recorded. `promotion_gates.common_layer_ci_verified` remains false until that certification workflow executes successfully. Stable promotion is not allowed while CI evidence is false.
+
+Product-specific ports, workers, daemon/runtime topology, native contracts, and business behavior remain local to this repository; generic policy should migrate into the pinned common layer rather than be reimplemented here.
 
