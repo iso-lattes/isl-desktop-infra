@@ -19,6 +19,21 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
+      - name: Check out pinned common desktop infra
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ORESoftware/ores-common-desktop-infra
+          ref: c98aee842535429bc07b5e4437a2fb84d8f00d25
+          token: ${{ secrets.FLEET_GITHUB_READ_TOKEN }}
+          path: tmp/dev/ores-common-desktop-infra
+
+      - name: Run pinned common desktop checker
+        env:
+          ORES_COMMON_DESKTOP_EXPECTED_REVISION: c98aee842535429bc07b5e4437a2fb84d8f00d25
+        run: |
+          cargo run --locked \
+            --manifest-path tmp/dev/ores-common-desktop-infra/daemon/rust/Cargo.toml \
+            --bin ores-common-desktop-consumer-check
       - name: Validate desktop appliance boundary
         shell: bash
         run: |
