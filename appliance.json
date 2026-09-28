@@ -44,7 +44,7 @@
     "repository": "ORESoftware/ores-common-desktop-infra",
     "checkout_dir": "tmp/dev/ores-common-desktop-infra",
     "status": "pinned",
-    "revision": "9bd8439ec1f64bac9f53ba6e546a89bc1f9cbdc3",
+    "revision": "3e5be90bbc3e2822db391a53a9d854e784c427e4",
     "capabilities": [
       "consumer-validation",
       "loopback-policy",
