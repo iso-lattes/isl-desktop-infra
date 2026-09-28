@@ -36,7 +36,7 @@
   },
   "promotion_gates": {
     "public_ingress_ready": false,
-    "daemon_lockfile_committed": false,
+    "daemon_lockfile_committed": true,
     "common_layer_pinned": true,
     "common_layer_ci_verified": false
   },
