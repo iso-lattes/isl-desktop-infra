@@ -64,4 +64,4 @@ Once the common repository is available, migration must be atomic:
 6. keep only product-specific ports, daemon/runtime topology, workers, and native contracts here.
 
 Mutable branches or tags are not acceptable release dependencies.
-
+<!-- common-desktop-infra-pin: 7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c -->
