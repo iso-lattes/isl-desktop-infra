@@ -8,11 +8,16 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: desktop-contract-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Validate desktop appliance boundary
         shell: bash
@@ -28,6 +33,27 @@ jobs:
 
           abort "wrong compose schema" unless doc["schema_version"] == "ores.compose.v1"
           abort "wrong appliance schema" unless appliance["schema"] == "ores.desktop-appliance/v1"
+
+          common = appliance.fetch("common_layer")
+          abort "common desktop repo identity drifted" unless common["repository"] == "ORESoftware/ores-common-desktop-infra"
+          abort "common desktop checkout must stay under tmp/dev" unless common["checkout_dir"] == "tmp/dev/ores-common-desktop-infra"
+          required_common_caps = %w[consumer-validation loopback-policy secret-file-policy cloudflare-policy update-policy process-lifecycle health-readiness structured-logging]
+          capabilities = common.fetch("capabilities")
+          abort "common desktop capability set incomplete" unless (required_common_caps - capabilities).empty?
+
+          gates = appliance.fetch("promotion_gates", {})
+          case common["status"]
+          when "awaiting-repository"
+            abort "awaiting common repository must not have a revision" unless common["revision"].nil?
+            abort "common layer promotion gate must remain false" unless gates["common_layer_pinned"] == false
+            abort "stable channel cannot await common repository" if appliance["channel"] == "stable"
+          when "pinned"
+            revision = common["revision"].to_s
+            abort "pinned common layer requires immutable 40-hex revision" unless revision.match?(/\A[0-9a-f]{40}\z/)
+            abort "pinned common layer promotion gate must be true" unless gates["common_layer_pinned"] == true
+          else
+            abort "unknown common desktop layer status"
+          end
           abort "unexpected public IP requirement" unless appliance.dig("host", "requires_public_ip") == false
           abort "cloudflare credentials may not live in repo" unless appliance.dig("cloudflare", "credentials_in_repo") == false
           abort "orchestrator must be ores-compose" unless appliance.dig("orchestrator", "engine") == "ores-compose"

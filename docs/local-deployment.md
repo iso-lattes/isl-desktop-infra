@@ -40,3 +40,28 @@ Before stable promotion, commit the daemon lockfile, change the build to `cargo 
 ## Upgrade model
 
 Upgrades change the immutable daemon source commit only after upstream review/CI. Mutable `latest` refs are forbidden.
+
+## Common desktop implementation layer
+
+This appliance is required to consume `ORESoftware/ores-common-desktop-infra` for generic host/security/lifecycle behavior instead of maintaining product-local copies.
+
+The machine-readable ORES appliance currently records:
+
+- repository: `ORESoftware/ores-common-desktop-infra`;
+- checkout: `tmp/dev/ores-common-desktop-infra`;
+- status: `awaiting-repository`;
+- revision: `null`.
+
+That is a fail-closed migration state. Stable promotion is blocked while `promotion_gates.common_layer_pinned` is false.
+
+Once the common repository is available, migration must be atomic:
+
+1. pin an exact 40-hex common-layer commit;
+2. change status to `pinned`;
+3. set `common_layer_pinned=true`;
+4. invoke/import the shared validators and lifecycle helpers from that exact checkout;
+5. delete product-local copies of code now owned by the common layer;
+6. keep only product-specific ports, daemon/runtime topology, workers, and native contracts here.
+
+Mutable branches or tags are not acceptable release dependencies.
+
