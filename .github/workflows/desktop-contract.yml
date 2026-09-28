@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ORES_COMMON_DESKTOP_REVISION: 7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c
+  ORES_COMMON_DESKTOP_REVISION: 9bd8439ec1f64bac9f53ba6e546a89bc1f9cbdc3
 
 jobs:
   validate:
