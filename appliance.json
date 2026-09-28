@@ -52,7 +52,11 @@
       "update-policy",
       "process-lifecycle",
       "health-readiness",
-      "structured-logging"
+      "structured-logging",
+      "runtime-isolation",
+      "stable-ingress",
+      "hot-reload-backends"
     ]
-  }
+  },
+  "hot_reload_policy": "hot-reload-policy.json"
 }

@@ -1,0 +1,40 @@
+{
+  "schema": "ores.desktop-hot-reload/v1",
+  "product": "iso-lattes",
+  "default": {
+    "route_backend": "native_atomic",
+    "middleware_code_reload": "process_generation",
+    "front_proxy": "none",
+    "proxy_managed_application_routes": false,
+    "route_drain_timeout_ms": 300000
+  },
+  "supported_front_proxies": [
+    "none",
+    "nginx",
+    "haproxy",
+    "caddy"
+  ],
+  "supported_route_backends": [
+    "beam",
+    "native_atomic",
+    "external_process",
+    "wasm_generation",
+    "nginx_worker_generation",
+    "haproxy_runtime",
+    "caddy_admin"
+  ],
+  "supported_middleware_code_reload": [
+    "beam_hot_code",
+    "process_generation",
+    "wasm_generation",
+    "declarative_only"
+  ],
+  "invariants": {
+    "routing_middleware_separate_from_compute": true,
+    "route_change_restarts_standalone_server": false,
+    "route_change_restarts_lambda_workers": false,
+    "arbitrary_native_middleware_in_router_process": false,
+    "bounded_old_generation_drain": true
+  },
+  "rationale": "Keep V8/isolate execution independent from routing; arbitrary-language middleware rolls by supervised process generation."
+}
