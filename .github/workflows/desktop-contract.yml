@@ -24,8 +24,8 @@ jobs:
         with:
           repository: ORESoftware/ores-common-desktop-infra
           ref: c98aee842535429bc07b5e4437a2fb84d8f00d25
+          token: ${{ secrets.FLEET_GITHUB_READ_TOKEN }}
           path: tmp/dev/ores-common-desktop-infra
-          persist-credentials: false
 
       - name: Run pinned common desktop checker
         env:
