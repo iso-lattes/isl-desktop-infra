@@ -44,7 +44,7 @@
     "repository": "ORESoftware/ores-common-desktop-infra",
     "checkout_dir": "tmp/dev/ores-common-desktop-infra",
     "status": "pinned",
-    "revision": "7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c",
+    "revision": "9bd8439ec1f64bac9f53ba6e546a89bc1f9cbdc3",
     "capabilities": [
       "consumer-validation",
       "loopback-policy",
@@ -53,7 +53,12 @@
       "update-policy",
       "process-lifecycle",
       "health-readiness",
-      "structured-logging"
+      "structured-logging",
+      "runtime-adapter-abi",
+      "immutable-deployment-bundle",
+      "durable-generation-state",
+      "desktop-event-stream",
+      "conformance-suite"
     ]
   }
 }
