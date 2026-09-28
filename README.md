@@ -17,3 +17,10 @@ Public ingress is intentionally gated until /v1/invoke has a remote-auth credent
 The daemon source is exact-commit pinned, loopback-only, and executed from the built release binary. Stable promotion remains blocked until the daemon repository commits a Cargo lockfile and the build switches to `--locked`.
 
 See [docs/local-deployment.md](docs/local-deployment.md) and [appliance.json](appliance.json) for the audited boundary and promotion gates.
+
+## Shared desktop infra dependency
+
+Generic desktop lifecycle/security behavior is moving to `ORESoftware/ores-common-desktop-infra`. This repo declares that dependency in its ORES appliance metadata and blocks stable promotion until an exact common-layer commit is pinned.
+
+Current state is intentionally `awaiting-repository` with a null revision because GitHub does not yet expose that repository through the connected installation. Product-local behavior remains candidate-only until the common layer can be consumed by exact SHA.
+
