@@ -82,7 +82,7 @@ jobs:
           common = appliance.fetch("common_layer")
           abort "common desktop repo identity drifted" unless common["repository"] == "ORESoftware/ores-common-desktop-infra"
           abort "common desktop checkout must stay under tmp/dev" unless common["checkout_dir"] == "tmp/dev/ores-common-desktop-infra"
-          required_common_caps = %w[consumer-validation loopback-policy secret-file-policy cloudflare-policy update-policy process-lifecycle health-readiness structured-logging runtime-isolation stable-ingress hot-reload-backends]
+          required_common_caps = %w[consumer-validation loopback-policy secret-file-policy cloudflare-policy update-policy process-lifecycle health-readiness structured-logging desktop-auth-shell mixed-compute-plane runtime-isolation stable-ingress cross-platform-packaging typed-mutation-auth middleware-executor-isolation runtime-adapter-abi immutable-deployment-bundle durable-generation-state desktop-event-stream conformance-suite hot-reload-backends]
           capabilities = common.fetch("capabilities")
           abort "common desktop capability set incomplete" unless (required_common_caps - capabilities).empty?
 
