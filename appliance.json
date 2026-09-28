@@ -37,13 +37,14 @@
   "promotion_gates": {
     "public_ingress_ready": false,
     "daemon_lockfile_committed": false,
-    "common_layer_pinned": false
+    "common_layer_pinned": true,
+    "common_layer_ci_verified": false
   },
   "common_layer": {
     "repository": "ORESoftware/ores-common-desktop-infra",
     "checkout_dir": "tmp/dev/ores-common-desktop-infra",
-    "status": "awaiting-repository",
-    "revision": null,
+    "status": "pinned",
+    "revision": "7bb4ed89ab4aa4a81c5e26e36b91f58d6313cc7c",
     "capabilities": [
       "consumer-validation",
       "loopback-policy",
