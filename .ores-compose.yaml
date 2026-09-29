@@ -9,7 +9,7 @@ services:
   daemon:
     runtime: host
     build:
-      - ["cargo", "build", "--release"]
+      - ["cargo", "build", "--release", "--locked"]
     command: ["./target/release/isl-desktop-daemon"]
     environment:
       ISL_DESKTOP_ADDR: "127.0.0.1:8761"
