@@ -15,7 +15,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Check out exact candidate
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,7 +36,7 @@ jobs:
           require "json"
 
           compose_path = ".ores-compose.yaml"
-          expected_common_revision = "c98aee842535429bc07b5e4437a2fb84d8f00d25"
+          expected_common_revision = "20ec084cc550c824c009d5413de84ab519081bd7"
           abort "missing #{compose_path}" unless File.file?(compose_path)
           doc = YAML.safe_load(File.read(compose_path), permitted_classes: [], permitted_symbols: [], aliases: false)
           appliance = JSON.parse(File.read("appliance.json"))
@@ -80,8 +80,6 @@ jobs:
           abort "route reload may not restart lambda workers" unless invariants["route_change_restarts_lambda_workers"] == false
           abort "arbitrary native middleware may not share router process" unless invariants["arbitrary_native_middleware_in_router_process"] == false
           abort "old generation draining must be bounded" unless invariants["bounded_old_generation_drain"] == true
-
-
 
           abort "wrong compose schema" unless doc["schema_version"] == "ores.compose.v1"
           abort "wrong appliance schema" unless appliance["schema"] == "ores.desktop-appliance/v1"
@@ -128,7 +126,7 @@ jobs:
 
           daemon = doc.fetch("services").fetch("daemon")
           abort "daemon must use host runtime" unless daemon["runtime"] == "host"
-          abort "daemon must build before start" unless daemon["build"] == [["cargo", "build", "--release"]]
+          abort "daemon must build before start" unless daemon["build"] == [["cargo", "build", "--release", "--locked"]]
           command = daemon.fetch("command")
           abort "daemon must run the built release binary directly" unless command.length == 1 && command.first.start_with?("./target/release/")
           abort "local compose must not start a public tunnel" if doc.fetch("services").key?("tunnel")
@@ -188,3 +186,35 @@ jobs:
             abort "Takoda agent credential/identity contract incomplete" unless (required - inherited).empty?
           end
           RUBY
+
+      - name: Require common desktop source credential
+        env:
+          ORE_SOURCE_PAT: ${{ secrets.ORE_SOURCE_PAT }}
+        run: test -n "$ORE_SOURCE_PAT"
+
+      - name: Check out exact common desktop conformance authority
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ORESoftware/ores-common-desktop-infra
+          ref: 20ec084cc550c824c009d5413de84ab519081bd7
+          path: tmp/dev/ores-common-desktop-infra
+          token: ${{ secrets.ORE_SOURCE_PAT }}
+          persist-credentials: false
+
+      - name: Verify exact common desktop revision
+        run: test "$(git -C tmp/dev/ores-common-desktop-infra rev-parse HEAD)" = "20ec084cc550c824c009d5413de84ab519081bd7"
+
+      - name: Install exact Rust toolchain
+        run: |
+          rustup toolchain install 1.82.0 --profile minimal
+          rustup default 1.82.0
+          rustc --version
+          cargo --version
+
+      - name: Run shared Rust appliance conformance
+        run: |
+          cargo run --locked \
+            --manifest-path tmp/dev/ores-common-desktop-infra/Cargo.toml \
+            -p ores-common-desktop-conformance \
+            --bin validate_appliance_contract \
+            -- "$GITHUB_WORKSPACE"
