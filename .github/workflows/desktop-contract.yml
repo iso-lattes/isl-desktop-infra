@@ -14,26 +14,20 @@ concurrency:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Check out pinned common desktop infra
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check out exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ORESoftware/ores-common-desktop-infra
-          ref: c98aee842535429bc07b5e4437a2fb84d8f00d25
-          token: ${{ secrets.FLEET_GITHUB_READ_TOKEN }}
-          path: tmp/dev/ores-common-desktop-infra
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
 
-      - name: Run pinned common desktop checker
+      - name: Verify exact candidate
         env:
-          ORES_COMMON_DESKTOP_EXPECTED_REVISION: c98aee842535429bc07b5e4437a2fb84d8f00d25
-        run: |
-          cargo run --locked \
-            --manifest-path tmp/dev/ores-common-desktop-infra/daemon/rust/Cargo.toml \
-            --bin ores-common-desktop-consumer-check
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
       - name: Validate desktop appliance boundary
         shell: bash
         run: |
@@ -42,6 +36,7 @@ jobs:
           require "json"
 
           compose_path = ".ores-compose.yaml"
+          expected_common_revision = "c98aee842535429bc07b5e4437a2fb84d8f00d25"
           abort "missing #{compose_path}" unless File.file?(compose_path)
           doc = YAML.safe_load(File.read(compose_path), permitted_classes: [], permitted_symbols: [], aliases: false)
           appliance = JSON.parse(File.read("appliance.json"))
@@ -73,8 +68,11 @@ jobs:
           when "caddy_admin"
             abort "Caddy admin backend requires caddy front proxy" unless defaults["front_proxy"] == "caddy"
           end
+          proxy_backends = %w[nginx_worker_generation haproxy_runtime caddy_admin]
           if defaults["proxy_managed_application_routes"]
-            abort "proxy-managed routes require a proxy-owned route backend" unless %w[nginx_worker_generation haproxy_runtime caddy_admin].include?(defaults["route_backend"])
+            abort "proxy-managed routes require a proxy-owned route backend" unless proxy_backends.include?(defaults["route_backend"])
+          elsif proxy_backends.include?(defaults["route_backend"])
+            abort "proxy-owned route backend requires proxy_managed_application_routes=true"
           end
           invariants = policy.fetch("invariants")
           abort "routing/middleware isolation invariant weakened" unless invariants["routing_middleware_separate_from_compute"] == true
@@ -104,14 +102,23 @@ jobs:
           when "pinned"
             revision = common["revision"].to_s
             abort "pinned common layer requires immutable 40-hex revision" unless revision.match?(/\A[0-9a-f]{40}\z/)
+            abort "pinned common layer revision drifted from the audited policy snapshot" unless revision == expected_common_revision
             abort "pinned common layer promotion gate must be true" unless gates["common_layer_pinned"] == true
+            if appliance["channel"] == "stable"
+              abort "stable channel requires executed common-layer CI evidence" unless gates["common_layer_ci_verified"] == true
+            end
           else
             abort "unknown common desktop layer status"
           end
           abort "unexpected public IP requirement" unless appliance.dig("host", "requires_public_ip") == false
+          daemon_listen = appliance.dig("host", "daemon_listen").to_s
+          listen_match = daemon_listen.match(/\A127\.0\.0\.1:(\d+)\z/)
+          abort "daemon_listen must be numeric IPv4 loopback with a non-zero port" unless listen_match && listen_match[1].to_i.between?(1, 65_535)
           abort "cloudflare credentials may not live in repo" unless appliance.dig("cloudflare", "credentials_in_repo") == false
           abort "orchestrator must be ores-compose" unless appliance.dig("orchestrator", "engine") == "ores-compose"
           abort "canonical compose path drifted" unless appliance.dig("orchestrator", "config") == compose_path
+          update_policy = appliance.fetch("update")
+          abort "update policy must be exact-revision and reject mutable latest" unless update_policy["mode"] == "exact-revision" && update_policy["allow_mutable_latest"] == false
 
           source = doc.fetch("source")
           commit = source.fetch("commit")
@@ -161,6 +168,9 @@ jobs:
             abort "remote-managed mode must be public-ready" unless ready == true
             abort "remote-managed mode requires dedicated remote auth" unless origin_auth == "dedicated-remote-auth"
             abort "tunnel token must be file-backed" unless appliance.dig("cloudflare", "token_source") == "file"
+            env_key = /\A[A-Z][A-Z0-9_]*\z/
+            abort "tunnel token file env key is invalid" unless appliance.dig("cloudflare", "token_file_env").to_s.match?(env_key)
+            abort "tunnel hostname env key is invalid" unless appliance.dig("cloudflare", "hostname_env").to_s.match?(env_key)
           else
             abort "unknown cloudflare mode"
           end
