@@ -16,9 +16,9 @@ Stop it from another terminal with:
 ores-compose down .ores-compose.yaml
 ```
 
-The manifest pins an exact 40-hex desktop-daemon commit under `tmp/dev`, builds it before startup, executes the built release binary directly, and binds the daemon only to the loopback address recorded in `appliance.json`.
+The manifest pins an exact 40-hex desktop-daemon commit under `tmp/dev`, builds it with `cargo build --release --locked`, executes the built release binary directly, and binds the daemon only to the loopback address recorded in `appliance.json`.
 
-The local daemon is runnable and loopback-only. Public ingress remains gated because /v1/invoke currently uses the same bearer as the local desktop-control boundary. A distinct remote-auth bridge must land before a public compose profile is added.
+The local daemon is runnable and loopback-only. Public ingress remains gated because `/v1/invoke` currently uses the same bearer as the local desktop-control boundary. A distinct remote-auth bridge must land before a public compose profile is added.
 
 ## Cloudflare boundary
 
@@ -33,35 +33,32 @@ For `cloudflare.mode = "not-required"`, the product uses an outbound authenticat
 
 ## Reproducibility gate
 
-The daemon source is commit-pinned, but the pinned daemon repository does not currently commit a `Cargo.lock`. Therefore `promotion_gates.daemon_lockfile_committed` remains false and this candidate must not be described as fully transitive-dependency reproducible.
-
-Before stable promotion, commit the daemon lockfile, change the build to `cargo build --locked --release`, and make CI enforce it.
-
-## Upgrade model
+The pinned daemon revision `2d81f3ed81a7eac5096cdcfecfbc3e6d83c2c18a` contains a committed Cargo v4 lockfile, so `promotion_gates.daemon_lockfile_committed` is `true`. The compose build uses Cargo's read-only `--locked` mode and must fail rather than silently resolving a different dependency graph.
 
 Upgrades change the immutable daemon source commit only after upstream review/CI. Mutable `latest` refs are forbidden.
 
 ## Common desktop implementation layer
 
-This appliance is required to consume `ORESoftware/ores-common-desktop-infra` for generic host/security/lifecycle behavior instead of maintaining product-local copies.
+This appliance consumes `ORESoftware/ores-common-desktop-infra` for generic host/security/lifecycle behavior instead of maintaining product-local copies.
 
 The machine-readable ORES appliance currently records:
 
 - repository: `ORESoftware/ores-common-desktop-infra`;
 - checkout: `tmp/dev/ores-common-desktop-infra`;
-- status: `awaiting-repository`;
-- revision: `null`.
+- status: `pinned`;
+- revision: `20ec084cc550c824c009d5413de84ab519081bd7`.
 
-That is a fail-closed migration state. Stable promotion is blocked while `promotion_gates.common_layer_pinned` is false.
+That merge commit has the same source tree as externally certified PR #40 head `95479e07b6b724784e639576f537303a5e4144b4`, but `promotion_gates.common_layer_ci_verified` remains `false` until the exact consumer pin completes a stepful integration proof here.
 
-Once the common repository is available, migration must be atomic:
+The desktop-contract workflow therefore runs two gates during migration:
 
-1. pin an exact 40-hex common-layer commit;
-2. change status to `pinned`;
-3. set `common_layer_pinned=true`;
-4. invoke/import the shared validators and lifecycle helpers from that exact checkout;
-5. delete product-local copies of code now owned by the common layer;
-6. keep only product-specific ports, daemon/runtime topology, workers, and native contracts here.
+1. the historical product-specific admission checks; and
+2. the shared Rust `validate_appliance_contract` binary from the exact pinned common-layer checkout.
+
+The historical Ruby validator is temporary parity evidence. Remove it only after the Rust gate has demonstrated equivalent coverage for this product; do not weaken admission simply to complete the language migration.
+
+## Reusable isolate boundary
+
+Iso-Lattes is not a fresh-process runtime. The daemon owns a reusable V8 isolate pool, and completion still requires proof that reuse is bounded and keyed to the intended tenant/deployment identity, with deterministic reset/sanitization between invocations, crash recovery, stale-isolate cleanup, and no state leakage across reuse boundaries.
 
 Mutable branches or tags are not acceptable release dependencies.
-
