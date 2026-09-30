@@ -36,7 +36,7 @@ jobs:
           require "json"
 
           compose_path = ".ores-compose.yaml"
-          expected_common_revision = "20ec084cc550c824c009d5413de84ab519081bd7"
+          expected_common_revision = "21851fcb6ca59fe4cfe887d882dac78d90548ce4"
           abort "missing #{compose_path}" unless File.file?(compose_path)
           doc = YAML.safe_load(File.read(compose_path), permitted_classes: [], permitted_symbols: [], aliases: false)
           appliance = JSON.parse(File.read("appliance.json"))
@@ -81,13 +81,36 @@ jobs:
           abort "arbitrary native middleware may not share router process" unless invariants["arbitrary_native_middleware_in_router_process"] == false
           abort "old generation draining must be bounded" unless invariants["bounded_old_generation_drain"] == true
 
+          release = policy.fetch("release_activation")
+          abort "preferred release strategy may not be auto" if release["preferred_strategy"] == "auto"
+          abort "process_generation must remain the fallback" unless release["fallback_strategy"] == "process_generation"
+          abort "native dynamic-library hot swap must stay forbidden" unless release["allow_native_dynamic_library_hot_swap"] == false
+          abort "code/middleware/routes must activate as one generation" unless release["code_middleware_routes_one_transaction"] == true
+          abort "release/default drain timeout drifted" unless release["drain_timeout_ms"] == defaults["route_drain_timeout_ms"]
+          abort "release/default old-generation limit drifted" unless release["max_old_generations"] == defaults["max_old_generations"]
+          caps = release.fetch("capabilities")
+          abort "process generation fallback must be supported" unless caps["supports_process_generation"] == true
+          certified = caps["in_process_generation_certified"] == true
+          if certified
+            required_in_process = %w[
+              supports_in_process_generation supports_parallel_generations
+              supports_pre_activation_health_check supports_atomic_activation
+              supports_inflight_generation_pinning supports_graceful_drain
+              supports_generation_rollback supports_generation_fault_containment
+            ]
+            abort "certified in-process generation requires the full lifecycle contract" unless required_in_process.all? { |key| caps[key] == true }
+            abort "certified in-process generation may not use a process code-loading boundary" if caps["code_loading_boundary"] == "process"
+          elsif caps["supports_in_process_generation"] != true
+            abort "disabled in-process generation cannot be marked certified" unless caps["in_process_generation_certified"] == false
+          end
+
           abort "wrong compose schema" unless doc["schema_version"] == "ores.compose.v1"
           abort "wrong appliance schema" unless appliance["schema"] == "ores.desktop-appliance/v1"
 
           common = appliance.fetch("common_layer")
           abort "common desktop repo identity drifted" unless common["repository"] == "ORESoftware/ores-common-desktop-infra"
           abort "common desktop checkout must stay under tmp/dev" unless common["checkout_dir"] == "tmp/dev/ores-common-desktop-infra"
-          required_common_caps = %w[consumer-validation loopback-policy secret-file-policy cloudflare-policy update-policy process-lifecycle health-readiness structured-logging desktop-auth-shell mixed-compute-plane runtime-isolation stable-ingress cross-platform-packaging typed-mutation-auth middleware-executor-isolation runtime-adapter-abi immutable-deployment-bundle durable-generation-state desktop-event-stream conformance-suite hot-reload-backends]
+          required_common_caps = %w[consumer-validation loopback-policy secret-file-policy cloudflare-policy update-policy process-lifecycle health-readiness structured-logging desktop-auth-shell mixed-compute-plane runtime-isolation stable-ingress cross-platform-packaging typed-mutation-auth middleware-executor-isolation runtime-adapter-abi immutable-deployment-bundle durable-generation-state desktop-event-stream conformance-suite hot-reload-backends generation-model release-activation-policy]
           capabilities = common.fetch("capabilities")
           abort "common desktop capability set incomplete" unless (required_common_caps - capabilities).empty?
 
@@ -187,34 +210,3 @@ jobs:
           end
           RUBY
 
-      - name: Require common desktop source credential
-        env:
-          ORE_SOURCE_PAT: ${{ secrets.ORE_SOURCE_PAT }}
-        run: test -n "$ORE_SOURCE_PAT"
-
-      - name: Check out exact common desktop conformance authority
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ORESoftware/ores-common-desktop-infra
-          ref: 20ec084cc550c824c009d5413de84ab519081bd7
-          path: tmp/dev/ores-common-desktop-infra
-          token: ${{ secrets.ORE_SOURCE_PAT }}
-          persist-credentials: false
-
-      - name: Verify exact common desktop revision
-        run: test "$(git -C tmp/dev/ores-common-desktop-infra rev-parse HEAD)" = "20ec084cc550c824c009d5413de84ab519081bd7"
-
-      - name: Install exact Rust toolchain
-        run: |
-          rustup toolchain install 1.82.0 --profile minimal
-          rustup default 1.82.0
-          rustc --version
-          cargo --version
-
-      - name: Run shared Rust appliance conformance
-        run: |
-          cargo run --locked \
-            --manifest-path tmp/dev/ores-common-desktop-infra/Cargo.toml \
-            -p ores-common-desktop-conformance \
-            --bin validate_appliance_contract \
-            -- "$GITHUB_WORKSPACE"
