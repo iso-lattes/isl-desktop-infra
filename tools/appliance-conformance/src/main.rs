@@ -265,10 +265,14 @@ fn validate_hot_reload(appliance: &Value, root: &Path) -> Result<(), String> {
         "/release_activation/capabilities/supports_process_generation",
         true,
     )?;
-    let supports_in_process =
-        bool_at(&policy, "/release_activation/capabilities/supports_in_process_generation")?;
-    let certified =
-        bool_at(&policy, "/release_activation/capabilities/in_process_generation_certified")?;
+    let supports_in_process = bool_at(
+        &policy,
+        "/release_activation/capabilities/supports_in_process_generation",
+    )?;
+    let certified = bool_at(
+        &policy,
+        "/release_activation/capabilities/in_process_generation_certified",
+    )?;
     if certified {
         if !supports_in_process {
             return Err("certified in-process generation must be supported".to_owned());
@@ -284,7 +288,11 @@ fn validate_hot_reload(appliance: &Value, root: &Path) -> Result<(), String> {
         ] {
             require_bool(&policy, path, true)?;
         }
-        if string_at(&policy, "/release_activation/capabilities/code_loading_boundary")? == "process" {
+        if string_at(
+            &policy,
+            "/release_activation/capabilities/code_loading_boundary",
+        )? == "process"
+        {
             return Err("certified in-process generation cannot use process boundary".to_owned());
         }
     } else if !supports_in_process {
