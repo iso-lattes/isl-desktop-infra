@@ -1,0 +1,25 @@
+{
+  "schema": "ores.entrypoint-reload/v1",
+  "product": "iso-lattes",
+  "release_policy": "hot-reload-policy.json",
+  "preferred_strategy": "in_process_entrypoint",
+  "fallback_strategy": "process_generation",
+  "build_granularity": "entrypoint_artifact",
+  "code_boundary": "v8_isolate",
+  "reuse_unchanged_artifacts": true,
+  "full_generation_manifest": true,
+  "code_middleware_routes_one_transaction": true,
+  "allow_native_dynamic_library_hot_swap": false,
+  "capabilities": {
+    "supports_per_entrypoint_build": true,
+    "supports_per_entrypoint_activation": true,
+    "supports_in_process_entrypoint_activation": true,
+    "in_process_entrypoint_certified": false,
+    "supports_child_process_entrypoint_activation": false,
+    "supports_parallel_candidate_artifacts": false,
+    "supports_pre_activation_health_check": false,
+    "supports_request_generation_pinning": false,
+    "supports_graceful_drain": false,
+    "supports_rollback": false
+  }
+}
