@@ -32,6 +32,8 @@ const REQUIRED_COMMON_CAPABILITIES: &[&str] = &[
     "desktop-event-stream",
     "conformance-suite",
     "hot-reload-backends",
+    "generation-model",
+    "release-activation-policy",
 ];
 
 fn main() {
@@ -236,6 +238,62 @@ fn validate_hot_reload(appliance: &Value, root: &Path) -> Result<(), String> {
         false,
     )?;
     require_bool(&policy, "/invariants/bounded_old_generation_drain", true)?;
+
+    require_string(
+        &policy,
+        "/release_activation/fallback_strategy",
+        "process_generation",
+    )?;
+    require_bool(
+        &policy,
+        "/release_activation/allow_native_dynamic_library_hot_swap",
+        false,
+    )?;
+    require_bool(
+        &policy,
+        "/release_activation/code_middleware_routes_one_transaction",
+        true,
+    )?;
+    if u64_at(&policy, "/release_activation/drain_timeout_ms")? != drain {
+        return Err("release/default drain timeout drifted".to_owned());
+    }
+    if u64_at(&policy, "/release_activation/max_old_generations")? != old_generations {
+        return Err("release/default max_old_generations drifted".to_owned());
+    }
+    require_bool(
+        &policy,
+        "/release_activation/capabilities/supports_process_generation",
+        true,
+    )?;
+    let supports_in_process =
+        bool_at(&policy, "/release_activation/capabilities/supports_in_process_generation")?;
+    let certified =
+        bool_at(&policy, "/release_activation/capabilities/in_process_generation_certified")?;
+    if certified {
+        if !supports_in_process {
+            return Err("certified in-process generation must be supported".to_owned());
+        }
+        for path in [
+            "/release_activation/capabilities/supports_parallel_generations",
+            "/release_activation/capabilities/supports_pre_activation_health_check",
+            "/release_activation/capabilities/supports_atomic_activation",
+            "/release_activation/capabilities/supports_inflight_generation_pinning",
+            "/release_activation/capabilities/supports_graceful_drain",
+            "/release_activation/capabilities/supports_generation_rollback",
+            "/release_activation/capabilities/supports_generation_fault_containment",
+        ] {
+            require_bool(&policy, path, true)?;
+        }
+        if string_at(&policy, "/release_activation/capabilities/code_loading_boundary")? == "process" {
+            return Err("certified in-process generation cannot use process boundary".to_owned());
+        }
+    } else if !supports_in_process {
+        require_bool(
+            &policy,
+            "/release_activation/capabilities/in_process_generation_certified",
+            false,
+        )?;
+    }
     return Ok(());
 }
 
