@@ -3,7 +3,7 @@ project: iso-lattes-desktop
 allow_lazy_start: false
 source:
   repository: https://github.com/iso-lattes/isl-desktop-daemon.git
-  commit: 2d81f3ed81a7eac5096cdcfecfbc3e6d83c2c18a
+  commit: 4dab0882f5ea999dafc9e23d769af951d1b756e5
   checkout_dir: tmp/dev/isl-desktop-daemon
 services:
   daemon:
