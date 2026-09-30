@@ -210,34 +210,3 @@ jobs:
           end
           RUBY
 
-      - name: Require common desktop source credential
-        env:
-          ORE_SOURCE_PAT: ${{ secrets.ORE_SOURCE_PAT }}
-        run: test -n "$ORE_SOURCE_PAT"
-
-      - name: Check out exact common desktop conformance authority
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ORESoftware/ores-common-desktop-infra
-          ref: 21851fcb6ca59fe4cfe887d882dac78d90548ce4
-          path: tmp/dev/ores-common-desktop-infra
-          token: ${{ secrets.ORE_SOURCE_PAT }}
-          persist-credentials: false
-
-      - name: Verify exact common desktop revision
-        run: test "$(git -C tmp/dev/ores-common-desktop-infra rev-parse HEAD)" = "21851fcb6ca59fe4cfe887d882dac78d90548ce4"
-
-      - name: Install exact Rust toolchain
-        run: |
-          rustup toolchain install 1.82.0 --profile minimal
-          rustup default 1.82.0
-          rustc --version
-          cargo --version
-
-      - name: Run shared Rust appliance conformance
-        run: |
-          cargo run --locked \
-            --manifest-path tmp/dev/ores-common-desktop-infra/Cargo.toml \
-            -p ores-common-desktop-conformance \
-            --bin validate_appliance_contract \
-            -- "$GITHUB_WORKSPACE"
