@@ -71,5 +71,6 @@
       "update-policy"
     ]
   },
+  "entrypoint_reload_policy": "entrypoint-reload-policy.json",
   "hot_reload_policy": "hot-reload-policy.json"
 }

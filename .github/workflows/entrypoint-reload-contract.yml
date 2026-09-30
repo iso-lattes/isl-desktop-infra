@@ -1,0 +1,70 @@
+name: entrypoint-reload-contract
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: entrypoint-reload-contract-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Verify exact candidate
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Validate entrypoint reload policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby <<'RUBY'
+          require "json"
+          appliance = JSON.parse(File.read("appliance.json"))
+          path = appliance.fetch("entrypoint_reload_policy")
+          abort "entrypoint reload policy path drifted" unless path == "entrypoint-reload-policy.json"
+          policy = JSON.parse(File.read(path))
+          abort "wrong entrypoint reload schema" unless policy["schema"] == "ores.entrypoint-reload/v1"
+          abort "entrypoint reload product mismatch" unless policy["product"] == appliance["product"]
+          abort "release policy reference drifted" unless policy["release_policy"] == "hot-reload-policy.json"
+          abort "preferred strategy may not be auto" if policy["preferred_strategy"] == "auto"
+          abort "process_generation must remain fallback" unless policy["fallback_strategy"] == "process_generation"
+          abort "unchanged artifacts must be reusable" unless policy["reuse_unchanged_artifacts"] == true
+          abort "target must remain a full generation manifest" unless policy["full_generation_manifest"] == true
+          abort "code/middleware/routes must activate atomically" unless policy["code_middleware_routes_one_transaction"] == true
+          abort "native dylib/FFI hot swap must remain forbidden" unless policy["allow_native_dynamic_library_hot_swap"] == false
+          caps = policy.fetch("capabilities")
+          abort "entrypoint build support missing" if policy["build_granularity"] == "entrypoint_artifact" && caps["supports_per_entrypoint_build"] != true
+          case policy["preferred_strategy"]
+          when "in_process_entrypoint"
+            abort "in-process target lacks per-entrypoint activation" unless caps["supports_per_entrypoint_activation"] == true
+            abort "in-process target lacks runtime support" unless caps["supports_in_process_entrypoint_activation"] == true
+            abort "in-process target may not use process boundary" if %w[process child_process_executable].include?(policy["code_boundary"])
+            if caps["in_process_entrypoint_certified"] == true
+              required = %w[supports_parallel_candidate_artifacts supports_pre_activation_health_check supports_request_generation_pinning supports_graceful_drain supports_rollback]
+              abort "certified in-process entrypoint path lacks lifecycle guarantees" unless required.all? { |key| caps[key] == true }
+            end
+          when "child_process_entrypoint"
+            abort "child target lacks per-entrypoint activation" unless caps["supports_per_entrypoint_activation"] == true
+            abort "child target lacks child-process support" unless caps["supports_child_process_entrypoint_activation"] == true
+            abort "child target must use child_process_executable boundary" unless policy["code_boundary"] == "child_process_executable"
+          when "process_generation"
+          else
+            abort "unknown preferred entrypoint strategy"
+          end
+          puts "entrypoint reload contract OK: #{appliance.fetch("product")}"
+          RUBY
