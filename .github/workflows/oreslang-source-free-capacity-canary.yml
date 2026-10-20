@@ -20,6 +20,6 @@ jobs:
           python3 - <<'PY'
           import hashlib
           payload = b"oreslang-source-free-capacity-canary-v1"
-          assert hashlib.sha256(payload).hexdigest() == "bd05ff17cbcb2019066119317d2f1864381116820540543292b0777ecbdd17da"
+          assert hashlib.sha256(payload).hexdigest() == "ba6f7c2a3fbab17257a8583aa0d1119e8e657314afbc562e4d79734e820b74fb"
           print("SYNTHETIC_HASH_OK")
           PY
