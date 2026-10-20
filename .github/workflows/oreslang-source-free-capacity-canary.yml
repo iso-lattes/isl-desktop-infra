@@ -23,3 +23,67 @@ jobs:
           assert hashlib.sha256(payload).hexdigest() == "ba6f7c2a3fbab17257a8583aa0d1119e8e657314afbc562e4d79734e820b74fb"
           print("SYNTHETIC_HASH_OK")
           PY
+      - name: Source-free private-CI identity oracle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+
+          approval = re.compile(r"^([A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*) ([1-9][0-9]*)$")
+
+          def parse_policy(text, target):
+              seen = set()
+              approved_id = None
+              for line in text.splitlines():
+                  if not line or line.startswith("#"):
+                      continue
+                  match = approval.fullmatch(line)
+                  if match is None:
+                      raise ValueError("invalid policy row")
+                  slug, numeric = match.groups()
+                  key = slug.casefold()
+                  if key in seen:
+                      raise ValueError("duplicate identity")
+                  seen.add(key)
+                  if key == target.casefold():
+                      approved_id = int(numeric)
+              if approved_id is None:
+                  raise ValueError("not approved")
+              return approved_id
+
+          assert parse_policy("trusted/ci 246810\n", "TRUSTED/CI") == 246810
+
+          invalid = (
+              "trusted/ci\n",
+              "trusted/ci 0246810\n",
+              "trusted/ci -1\n",
+              "trusted/ci 246810 extra\n",
+              "trusted/ci 246810\nTRUSTED/CI 246811\n",
+          )
+          for value in invalid:
+              try:
+                  parse_policy(value, "trusted/ci")
+              except ValueError:
+                  pass
+              else:
+                  raise AssertionError(value)
+
+          def authorize(policy_id, contract_id, live_id):
+              if policy_id != contract_id:
+                  raise PermissionError("contract/approval mismatch")
+              if live_id != policy_id:
+                  raise PermissionError("repository replacement")
+              return True
+
+          assert authorize(246810, 246810, 246810)
+          for ids in ((246810, 246811, 246811), (246810, 246810, 246811)):
+              try:
+                  authorize(*ids)
+              except PermissionError:
+                  pass
+              else:
+                  raise AssertionError(ids)
+
+          print("SOURCE_FREE_PRIVATE_CI_IDENTITY_ORACLE_OK")
+          PY
