@@ -1,0 +1,25 @@
+name: Oreslang source-free capacity canary
+on:
+  push:
+    branches:
+      - ci/oreslang-source-free-capacity-20261020
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Prove runner admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'RUNNER_ADMITTED source-free Oreslang capacity canary\n'
+          python3 - <<'PY'
+          import hashlib
+          payload = b"oreslang-source-free-capacity-canary-v1"
+          assert hashlib.sha256(payload).hexdigest() == "bd05ff17cbcb2019066119317d2f1864381116820540543292b0777ecbdd17da"
+          print("SYNTHETIC_HASH_OK")
+          PY
