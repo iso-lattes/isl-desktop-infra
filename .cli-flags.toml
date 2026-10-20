@@ -1,0 +1,13 @@
+# Canonical flags-2-env contract for this runtime.
+# Generated clients should use the closed typed env-key API from flags-2-env.
+
+[identity]
+service = "isl-desktop-infra"
+type_name = "RuntimeEnv"
+
+[parse]
+allow_unknown = false
+
+[env]
+load = false
+files = []
