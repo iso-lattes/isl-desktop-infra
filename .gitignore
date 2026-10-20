@@ -1,0 +1,5 @@
+# Local temporary directories and build outputs
+tmp/
+temp/
+target/
+.ores/
